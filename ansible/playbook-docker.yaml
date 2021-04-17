@@ -1,0 +1,66 @@
+- hosts: local
+  gather_facts: False
+  debugger: on_skipped
+  vars:
+    instalar:
+      - docker.io
+      - docker-compose
+
+  tasks:
+  - name: Instalando pacotes
+    apt:
+      name: "{{ item }}"
+      update_cache: yes
+      state: present
+    with_items: "{{ instalar }}"
+
+  - name: Habilitar docker no boot
+    service:
+        name: docker
+        enabled: yes
+        state: started
+
+  - name: Criando docker-compose do template
+    template:
+      src: template-docker-compose.j2
+      dest: /root/docker-compose.yml
+
+  - name: Copiando artefatos para o servidor
+    copy:
+       src: "{{ item }}"
+       dest: "/root/{{ item }}"
+       owner: root
+       group: root
+    with_items:
+      - Dockerfile
+      - app.py
+      - requirements.txt 
+
+  # - name: checar imagem
+  #   command: "docker images | grep impacta"
+  #   register: docker_check
+  # - debug: msg={{ docker_check }}
+
+  - name: Construir imagem por modulo docker_image
+    community.docker.docker_image:
+     name: "{{ usar_imagem }}:{{ versao }}"
+     build:
+       path: /root/
+     source: build
+  #   register: docker_build
+
+  # - name: Construindo a imagem
+  #   command: docker build -t {{ usar_imagem }} .
+  #   args:
+  #      chdir: /root/
+  #   register: docker_build
+  #   tags:
+  #     - docker-build
+  
+  - name: Executando o docker-compose
+    command: docker-compose up -d
+    args:
+       chdir: /root/
+    register: docker_compose_up
+    tags:
+      - docker-start
